@@ -21,13 +21,13 @@ services:
     container_name: consulta-articulos
     restart: unless-stopped
     ports:
-      - "8080:80"
+      - "7073:80"
 ```
 
 Luego abrir:
 
 ```text
-http://IP-DEL-SERVIDOR:8080
+http://IP-DEL-SERVIDOR:7073
 ```
 
 ## Archivos

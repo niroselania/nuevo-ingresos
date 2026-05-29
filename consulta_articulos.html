@@ -60,7 +60,7 @@
 
     .toolbar {
       display: grid;
-      grid-template-columns: minmax(220px, 1fr) minmax(160px, 230px) auto;
+      grid-template-columns: minmax(220px, 1.2fr) minmax(150px, 210px) repeat(4, minmax(120px, 1fr)) minmax(150px, 190px) auto auto;
       gap: 10px;
       align-items: end;
       margin-bottom: 16px;
@@ -105,9 +105,18 @@
 
     button:hover { background: var(--accent-dark); }
 
+    button.secondary {
+      background: #ffffff;
+      color: var(--accent);
+    }
+
+    button.secondary:hover {
+      background: #eef9f7;
+    }
+
     .stats {
       display: grid;
-      grid-template-columns: repeat(4, minmax(150px, 1fr));
+      grid-template-columns: repeat(6, minmax(140px, 1fr));
       gap: 10px;
       margin-bottom: 16px;
     }
@@ -142,6 +151,14 @@
       grid-template-columns: minmax(260px, 360px) 1fr;
       gap: 16px;
       align-items: start;
+      margin-bottom: 16px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(260px, 1fr));
+      gap: 16px;
+      margin-bottom: 16px;
     }
 
     section {
@@ -233,6 +250,12 @@
       font-weight: 700;
     }
 
+    .row-action {
+      min-height: 30px;
+      padding: 0 9px;
+      font-size: 12px;
+    }
+
     mark {
       background: #fde68a;
       color: inherit;
@@ -247,7 +270,7 @@
     }
 
     @media (max-width: 920px) {
-      .toolbar, .layout, .stats {
+      .toolbar, .layout, .stats, .summary-grid {
         grid-template-columns: 1fr;
       }
 
@@ -260,7 +283,7 @@
 <body>
   <header>
     <h1>Consulta de artículos</h1>
-    <p>Buscá por código, color, talle, descripción, cantidad, precio o team. El resumen por Team muestra la cantidad total y permite filtrar con un clic.</p>
+    <p>Buscá, combiná filtros, revisá resúmenes por Team, color y talle, exportá resultados y alterná entre detalle original o agrupado por artículo.</p>
   </header>
 
   <main>
@@ -283,14 +306,40 @@
           <option value="upc">UPC</option>
         </select>
       </label>
+      <label>
+        Team
+        <select id="teamFilter"><option value="">Todos</option></select>
+      </label>
+      <label>
+        Color
+        <select id="colorFilter"><option value="">Todos</option></select>
+      </label>
+      <label>
+        Talle
+        <select id="sizeFilter"><option value="">Todos</option></select>
+      </label>
+      <label>
+        Season
+        <select id="seasonFilter"><option value="">Todas</option></select>
+      </label>
+      <label>
+        Vista
+        <select id="viewSelect">
+          <option value="detail">Detalle original</option>
+          <option value="grouped">Agrupado por artículo</option>
+        </select>
+      </label>
+      <button id="exportButton" type="button">Exportar CSV</button>
       <button id="clearButton" type="button">Limpiar</button>
     </div>
 
     <div class="stats" aria-live="polite">
       <div class="stat"><span>Filas encontradas</span><strong id="foundCount">0</strong></div>
       <div class="stat"><span>Cantidad total</span><strong id="foundUnits">0</strong></div>
+      <div class="stat"><span>Artículos únicos</span><strong id="uniqueCount">0</strong></div>
+      <div class="stat"><span>Importe total</span><strong id="foundAmount">0</strong></div>
       <div class="stat"><span>Teams visibles</span><strong id="foundTeams">0</strong></div>
-      <div class="stat"><span>Total base</span><strong id="baseCount">0</strong></div>
+      <div class="stat"><span>Team principal</span><strong id="topTeam">-</strong></div>
     </div>
 
     <div class="layout">
@@ -304,8 +353,9 @@
             <thead>
               <tr>
                 <th>Team</th>
-                <th class="num">Artículos</th>
+                <th class="num">Modelos</th>
                 <th class="num">Cantidad</th>
+                <th class="num">Importe</th>
               </tr>
             </thead>
             <tbody id="teamBody"></tbody>
@@ -328,14 +378,58 @@
                 <th>Descripción</th>
                 <th class="num">Cantidad</th>
                 <th class="num">Precio</th>
+                <th class="num">Importe</th>
                 <th>Team</th>
                 <th>Season</th>
                 <th>Config</th>
+                <th>Acción</th>
               </tr>
             </thead>
             <tbody id="resultBody"></tbody>
           </table>
           <div id="emptyState" class="empty" hidden>No encontré artículos con esa búsqueda.</div>
+        </div>
+      </section>
+    </div>
+
+    <div class="summary-grid">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Cantidades por Color</h2>
+          <span class="small" id="colorHint"></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Color</th>
+                <th class="num">Modelos</th>
+                <th class="num">Cantidad</th>
+                <th class="num">Importe</th>
+              </tr>
+            </thead>
+            <tbody id="colorBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Cantidades por Talle</h2>
+          <span class="small" id="sizeHint"></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Talle</th>
+                <th class="num">Modelos</th>
+                <th class="num">Cantidad</th>
+                <th class="num">Importe</th>
+              </tr>
+            </thead>
+            <tbody id="sizeBody"></tbody>
+          </table>
         </div>
       </section>
     </div>
@@ -347,15 +441,27 @@
     const fields = ["codigo", "upc", "color", "talle", "descripcion", "cantidad", "precio", "importe", "team", "season", "styleColor", "config"];
     const searchInput = document.getElementById("searchInput");
     const fieldSelect = document.getElementById("fieldSelect");
+    const teamFilter = document.getElementById("teamFilter");
+    const colorFilter = document.getElementById("colorFilter");
+    const sizeFilter = document.getElementById("sizeFilter");
+    const seasonFilter = document.getElementById("seasonFilter");
+    const viewSelect = document.getElementById("viewSelect");
+    const exportButton = document.getElementById("exportButton");
     const clearButton = document.getElementById("clearButton");
     const resultBody = document.getElementById("resultBody");
     const teamBody = document.getElementById("teamBody");
+    const colorBody = document.getElementById("colorBody");
+    const sizeBody = document.getElementById("sizeBody");
     const emptyState = document.getElementById("emptyState");
     const foundCount = document.getElementById("foundCount");
     const foundUnits = document.getElementById("foundUnits");
+    const uniqueCount = document.getElementById("uniqueCount");
+    const foundAmount = document.getElementById("foundAmount");
     const foundTeams = document.getElementById("foundTeams");
-    const baseCount = document.getElementById("baseCount");
+    const topTeam = document.getElementById("topTeam");
     const resultHint = document.getElementById("resultHint");
+    const colorHint = document.getElementById("colorHint");
+    const sizeHint = document.getElementById("sizeHint");
 
     const formatNumber = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 });
     const formatMoney = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -388,82 +494,245 @@
       return fields.some(key => normalized(row[key]).includes(q));
     }
 
+    function articleKey(row) {
+      return [row.codigo, row.color, row.talle, row.team, row.descripcion].map(text).join("||");
+    }
+
+    function optionList(key) {
+      return [...new Set(DATA.map(row => text(row[key]).trim()).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, "es-AR", { numeric: true }));
+    }
+
+    function fillSelect(select, values, allLabel) {
+      select.innerHTML = `<option value="">${allLabel}</option>` + values.map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("");
+    }
+
+    function passesFilters(row) {
+      return (!teamFilter.value || row.team === teamFilter.value)
+        && (!colorFilter.value || row.color === colorFilter.value)
+        && (!sizeFilter.value || row.talle === sizeFilter.value)
+        && (!seasonFilter.value || row.season === seasonFilter.value);
+    }
+
+    function currentRows() {
+      const query = searchInput.value.trim();
+      const field = fieldSelect.value;
+      return DATA.filter(row => matches(row, query, field) && passesFilters(row));
+    }
+
     function summarize(rows) {
       const map = new Map();
       for (const row of rows) {
         const name = row.team || "Sin Team";
-        const current = map.get(name) || { team: name, rows: 0, units: 0 };
+        const current = map.get(name) || { label: name, rows: 0, units: 0, amount: 0, unique: new Set() };
         current.rows += 1;
         current.units += Number(row.cantidad) || 0;
+        current.amount += Number(row.importe) || 0;
+        current.unique.add(articleKey(row));
         map.set(name, current);
       }
-      return [...map.values()].sort((a, b) => b.units - a.units || a.team.localeCompare(b.team));
+      return [...map.values()].map(item => ({ ...item, uniqueCount: item.unique.size }))
+        .sort((a, b) => b.units - a.units || a.label.localeCompare(b.label));
+    }
+
+    function summarizeBy(rows, key) {
+      const map = new Map();
+      for (const row of rows) {
+        const name = row[key] || "Sin dato";
+        const current = map.get(name) || { label: name, rows: 0, units: 0, amount: 0, unique: new Set() };
+        current.rows += 1;
+        current.units += Number(row.cantidad) || 0;
+        current.amount += Number(row.importe) || 0;
+        current.unique.add(articleKey(row));
+        map.set(name, current);
+      }
+      return [...map.values()].map(item => ({ ...item, uniqueCount: item.unique.size }))
+        .sort((a, b) => b.units - a.units || a.label.localeCompare(b.label));
+    }
+
+    function groupArticles(rows) {
+      const map = new Map();
+      for (const row of rows) {
+        const key = articleKey(row);
+        const current = map.get(key) || {
+          codigo: row.codigo,
+          color: row.color,
+          talle: row.talle,
+          descripcion: row.descripcion,
+          team: row.team,
+          season: row.season,
+          config: row.config,
+          precio: row.precio,
+          cantidad: 0,
+          importe: 0,
+          lineas: 0
+        };
+        current.cantidad += Number(row.cantidad) || 0;
+        current.importe += Number(row.importe) || 0;
+        current.lineas += 1;
+        map.set(key, current);
+      }
+      return [...map.values()].sort((a, b) => b.cantidad - a.cantidad || a.codigo.localeCompare(b.codigo, "es-AR", { numeric: true }));
     }
 
     function renderTeams(rows, query, field) {
-      const activeTeam = field === "team" ? query.trim() : "";
+      const activeTeam = teamFilter.value || (field === "team" ? query.trim() : "");
       teamBody.innerHTML = summarize(rows).map(item => `
-        <tr class="team-row ${activeTeam && normalized(item.team) === normalized(activeTeam) ? "active" : ""}" data-team="${escapeHtml(item.team)}">
-          <td>${highlight(item.team, field === "team" ? query : "")}</td>
-          <td class="num">${formatNumber.format(item.rows)}</td>
+        <tr class="team-row ${activeTeam && normalized(item.label) === normalized(activeTeam) ? "active" : ""}" data-team="${escapeHtml(item.label)}">
+          <td>${highlight(item.label, field === "team" ? query : "")}</td>
+          <td class="num">${formatNumber.format(item.uniqueCount)}</td>
           <td class="num">${formatNumber.format(item.units)}</td>
+          <td class="num">${formatMoney.format(item.amount)}</td>
+        </tr>
+      `).join("");
+    }
+
+    function renderSimpleSummary(body, rows, filterElement) {
+      body.innerHTML = rows.slice(0, 120).map(item => `
+        <tr class="team-row ${filterElement.value && normalized(item.label) === normalized(filterElement.value) ? "active" : ""}" data-value="${escapeHtml(item.label)}">
+          <td>${escapeHtml(item.label)}</td>
+          <td class="num">${formatNumber.format(item.uniqueCount)}</td>
+          <td class="num">${formatNumber.format(item.units)}</td>
+          <td class="num">${formatMoney.format(item.amount)}</td>
         </tr>
       `).join("");
     }
 
     function renderResults(rows, query, field) {
-      const limited = rows.slice(0, 600);
-      resultBody.innerHTML = limited.map(row => `
-        <tr>
-          <td>${highlight(row.codigo, field === "codigo" || field === "all" ? query : "")}</td>
-          <td>${highlight(row.color, field === "color" || field === "all" ? query : "")}</td>
-          <td>${highlight(row.talle, field === "talle" || field === "all" ? query : "")}</td>
-          <td class="description">${highlight(row.descripcion, field === "descripcion" || field === "all" ? query : "")}</td>
-          <td class="num">${formatNumber.format(row.cantidad)}</td>
-          <td class="num">${formatMoney.format(row.precio)}</td>
-          <td>${highlight(row.team, field === "team" || field === "all" ? query : "")}</td>
-          <td>${escapeHtml(row.season)}</td>
-          <td>${escapeHtml(row.config)}</td>
-        </tr>
-      `).join("");
-      emptyState.hidden = rows.length !== 0;
-      resultHint.textContent = rows.length > limited.length ? `Mostrando 600 de ${formatNumber.format(rows.length)}` : `${formatNumber.format(rows.length)} filas`;
+      const grouped = viewSelect.value === "grouped";
+      const displayRows = grouped ? groupArticles(rows) : rows;
+      const limited = displayRows.slice(0, 800);
+      resultBody.innerHTML = limited.map(row => {
+        const action = grouped
+          ? `<button class="row-action secondary" type="button" data-detail="${escapeHtml([row.codigo, row.color, row.talle, row.team, row.descripcion].join("||"))}">Ver detalle</button>`
+          : "";
+        return `
+          <tr>
+            <td>${highlight(row.codigo, field === "codigo" || field === "all" ? query : "")}</td>
+            <td>${highlight(row.color, field === "color" || field === "all" ? query : "")}</td>
+            <td>${highlight(row.talle, field === "talle" || field === "all" ? query : "")}</td>
+            <td class="description">${highlight(row.descripcion, field === "descripcion" || field === "all" ? query : "")}</td>
+            <td class="num">${formatNumber.format(row.cantidad)}</td>
+            <td class="num">${formatMoney.format(row.precio)}</td>
+            <td class="num">${formatMoney.format(row.importe)}</td>
+            <td>${highlight(row.team, field === "team" || field === "all" ? query : "")}</td>
+            <td>${escapeHtml(row.season)}</td>
+            <td>${escapeHtml(row.config)}</td>
+            <td>${action}</td>
+          </tr>
+        `;
+      }).join("");
+      emptyState.hidden = displayRows.length !== 0;
+      const noun = grouped ? "artículos agrupados" : "filas";
+      resultHint.textContent = displayRows.length > limited.length ? `Mostrando 800 de ${formatNumber.format(displayRows.length)} ${noun}` : `${formatNumber.format(displayRows.length)} ${noun}`;
     }
 
     function update() {
       const query = searchInput.value.trim();
       const field = fieldSelect.value;
-      const rows = DATA.filter(row => matches(row, query, field));
+      const rows = currentRows();
       const teams = summarize(rows);
       const totalUnits = rows.reduce((sum, row) => sum + (Number(row.cantidad) || 0), 0);
+      const totalAmount = rows.reduce((sum, row) => sum + (Number(row.importe) || 0), 0);
+      const uniqueArticles = new Set(rows.map(articleKey));
 
       foundCount.textContent = formatNumber.format(rows.length);
       foundUnits.textContent = formatNumber.format(totalUnits);
+      uniqueCount.textContent = formatNumber.format(uniqueArticles.size);
+      foundAmount.textContent = formatMoney.format(totalAmount);
       foundTeams.textContent = formatNumber.format(teams.length);
-      baseCount.textContent = formatNumber.format(DATA.length);
+      topTeam.textContent = teams[0] ? teams[0].label : "-";
 
       renderTeams(rows, query, field);
+      const colorSummary = summarizeBy(rows, "color");
+      const sizeSummary = summarizeBy(rows, "talle");
+      renderSimpleSummary(colorBody, colorSummary, colorFilter);
+      renderSimpleSummary(sizeBody, sizeSummary, sizeFilter);
+      colorHint.textContent = `${formatNumber.format(colorSummary.length)} colores`;
+      sizeHint.textContent = `${formatNumber.format(sizeSummary.length)} talles`;
       renderResults(rows, query, field);
     }
 
-    searchInput.addEventListener("input", update);
-    fieldSelect.addEventListener("change", update);
-    clearButton.addEventListener("click", () => {
+    function exportCsv() {
+      const rows = viewSelect.value === "grouped" ? groupArticles(currentRows()) : currentRows();
+      const headers = viewSelect.value === "grouped"
+        ? ["codigo", "color", "talle", "descripcion", "cantidad", "precio", "importe", "team", "season", "config", "lineas"]
+        : ["codigo", "upc", "color", "talle", "descripcion", "cantidad", "precio", "importe", "team", "season", "styleColor", "config"];
+      const csv = [headers, ...rows.map(row => headers.map(key => row[key] ?? ""))]
+        .map(values => values.map(value => `"${text(value).replaceAll('"', '""')}"`).join(","))
+        .join("\n");
+      const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = viewSelect.value === "grouped" ? "articulos_agrupados.csv" : "articulos_filtrados.csv";
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function clearFilters() {
       searchInput.value = "";
       fieldSelect.value = "all";
+      teamFilter.value = "";
+      colorFilter.value = "";
+      sizeFilter.value = "";
+      seasonFilter.value = "";
+      viewSelect.value = "detail";
       update();
       searchInput.focus();
-    });
+    }
+
+    fillSelect(teamFilter, optionList("team"), "Todos");
+    fillSelect(colorFilter, optionList("color"), "Todos");
+    fillSelect(sizeFilter, optionList("talle"), "Todos");
+    fillSelect(seasonFilter, optionList("season"), "Todas");
+
+    searchInput.addEventListener("input", update);
+    fieldSelect.addEventListener("change", update);
+    teamFilter.addEventListener("change", update);
+    colorFilter.addEventListener("change", update);
+    sizeFilter.addEventListener("change", update);
+    seasonFilter.addEventListener("change", update);
+    viewSelect.addEventListener("change", update);
+    exportButton.addEventListener("click", exportCsv);
+    clearButton.addEventListener("click", clearFilters);
 
     teamBody.addEventListener("click", event => {
       const row = event.target.closest("tr[data-team]");
       if (!row) return;
-      searchInput.value = row.dataset.team;
-      fieldSelect.value = "team";
+      teamFilter.value = row.dataset.team;
+      searchInput.value = "";
+      fieldSelect.value = "all";
       update();
     });
 
-    baseCount.textContent = formatNumber.format(DATA.length);
+    colorBody.addEventListener("click", event => {
+      const row = event.target.closest("tr[data-value]");
+      if (!row) return;
+      colorFilter.value = row.dataset.value;
+      update();
+    });
+
+    sizeBody.addEventListener("click", event => {
+      const row = event.target.closest("tr[data-value]");
+      if (!row) return;
+      sizeFilter.value = row.dataset.value;
+      update();
+    });
+
+    resultBody.addEventListener("click", event => {
+      const button = event.target.closest("button[data-detail]");
+      if (!button) return;
+      const [codigo, color, talle, team, descripcion] = button.dataset.detail.split("||");
+      searchInput.value = codigo;
+      fieldSelect.value = "codigo";
+      colorFilter.value = color;
+      sizeFilter.value = talle;
+      teamFilter.value = team;
+      viewSelect.value = "detail";
+      update();
+    });
+
     update();
   </script>
 </body>

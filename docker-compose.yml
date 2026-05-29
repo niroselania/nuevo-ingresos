@@ -1,0 +1,7 @@
+services:
+  consulta-articulos:
+    build: .
+    container_name: consulta-articulos
+    restart: unless-stopped
+    ports:
+      - "8080:80"

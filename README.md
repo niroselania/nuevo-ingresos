@@ -2,6 +2,17 @@
 
 App HTML estatica para consultar articulos por codigo, color, talle, descripcion, cantidad, precio, UPC o Team.
 
+## Funciones
+
+- Busqueda general o por campo especifico.
+- Filtros combinados por Team, color, talle y season.
+- Vista de detalle original.
+- Vista agrupada por codigo, color, talle, Team y descripcion, sumando cantidades e importes.
+- Resumen por Team con modelos, cantidad e importe.
+- Resumen por color y por talle.
+- Indicadores de filas, unidades, articulos unicos, importe total, Teams visibles y Team principal.
+- Exportacion CSV de la vista actual.
+
 ## Usar en Portainer
 
 Crear un stack o contenedor desde este repositorio usando la imagen construida con el `Dockerfile`.
